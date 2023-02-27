@@ -128,3 +128,5 @@ function renderNewProductInBasket(productId) {
     `;
   basketTotalEl.insertAdjacentHTML("beforebegin", productRow);
 }
+
+
