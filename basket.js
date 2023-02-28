@@ -1,69 +1,136 @@
-'use strict';
+"use strict";
 
-const basketCounterEl = document.querySelector('.cartIconWrap span');
-const basketTotalEl = document.querySelector('.basketTotal');
-const basketTotalValueEl = document.querySelector('.basketTotalValue');
-const basketEl = document.querySelector('.basket');
+/**
+ * Корзина, которая хранит количество каждого добавленного товара, 
+ * значение этого товара в корзине - объект, содержащий
+ * id (ключ), название товара, цену, и количество штук.
+ * */
+const basket = {};
+
+/**
+ * Продукты, которые продаются в магазине, формат объекта:
+ * {
+ *   04a57766-c599-4366-8dc4-89ff1ccd3b14: {
+ *     {
+ *        id: '04a57766-c599-4366-8dc4-89ff1ccd3b14',
+ *        name: 'Крутая куртка',
+ *        description: 'Очень модная куртка, покупаем, пока не распродали весь товар.',
+ *        price: 3700,
+ *        img: 'images/featured/1.jpg'
+ *     },
+ *     ...
+ *   }
+ * }
+ */
+const products = getProductsObject();
+
+/**
+ * Находим нужные элементы для работы с корзиной в html.
+ */
+// Главный элемент корзины.
+const basketEl = document.querySelector(".basket");
+// Обертка списка товаров.
+const basketListEl = document.querySelector(".basketList");
+// Количество товаров в корзине, в красном кружке, возле иконки корзины.
+const basketCounterEl = document.querySelector(".cartIconWrap span");
+// Общая сумма товаров в корзине.
+const basketTotalValueEl = document.querySelector(".basketTotalValue");
 
 /**
  * Обработчик открытия корзины при клике на ее значок.
  */
-document.querySelector('.cartIconWrap').addEventListener('click', () => {
-  basketEl.classList.toggle('hidden');
+document.querySelector(".cartIconWrap").addEventListener("click", () => {
+  basketEl.classList.toggle("hidden");
 });
-
-/**
- * В корзине хранится количество каждого товара
- * Ключ это id продукта, значение это товар в корзине - объект, содержащий
- * id, название товара, цену, и количество штук, например:
- * {
- *    1: {id: 1, name: "product 1", price: 30, count: 2},
- *    3: {id: 3, name: "product 3", price: 25, count: 1},
- * }
- */
-const basket = {};
 
 /**
  * Обработчик клика на кнопку "Добавить в корзину" с деленированием события.
  * Событие вешается на ближайшего общего для всех кнопок предка.
  */
-document.querySelector('.featuredItems').addEventListener('click', event => {
+document.querySelector(".featuredItems").addEventListener("click", (event) => {
+  // Получаем кнопку "Add to cart". Используем .closest метод, чтобы получить
+  // ее, так как клик может быть на иконку тележки, а не на саму кнопку.
+  const addToCartEl = event.target.closest(".addToCart");
   // Проверяем, если клик был не по кнопке с селектором ".addToCart", а также
-  // такого селектора не существует среди родителей элемента, по которому был
-  // произведен клик, то ничего не делаем, уходим из функции.
-  if (!event.target.closest('.addToCart')) {
+  // такого селектора не существует среди родителей элемента, значит
+  // пользователь кликнул куда-то в другое место, нас этот клик не интересует,
+  // ничего не делаем, уходим из функции.
+  if (!addToCartEl) {
     return;
   }
-  // Получаем ближайшего родителя с классом featuredItem, в нем записаны все
-  // нужные данные о продукте, получаем эти данные.
-  const featuredItemEl = event.target.closest('.featuredItem');
-  const id = +featuredItemEl.dataset.id;
-  const name = featuredItemEl.dataset.name;
-  const price = +featuredItemEl.dataset.price;
-  // Добавляем в корзину продукт.
-  addToCart(id, name, price);
+  // Получаем id продукта, который прописан в data-id у кнопки, ко которой
+  // произошел клик. Передаем id для добавления в корзину продукта с данным id.
+  addToBasket(addToCartEl.dataset.id);
+  // Перерисовываем корзину.
+  renderBasketContent();
 });
 
 /**
- * Функция добавляет продукт в корзину.
- * @param {number} id - Id продукта.
- * @param {string} name - Название продукта.
- * @param {number} price - Цена продукта.
+ * Обработчик кнопки удаления товара.
  */
-function addToCart(id, name, price) {
+basketEl.addEventListener("click", (event) => {
+  // Проверяем, если клик был не по кнопке удаления товара, то ничего
+  // не делаем, уходим из функции.
+  if (!event.target.classList.contains("productRemove")) {
+    return;
+  }
+  // Получаем id удаляемого товара и удаляем его.
+  removeFromBasket(event.target.closest(".basketRow").dataset.id);
+  // Перерисовываем корзину.
+  renderBasketContent();
+});
+
+/**
+ * Функция добавления продукт в корзину.
+ * @param {string} id - id продукта.
+ */
+function addToBasket(id) {
   // Если такого продукта еще не было добавлено в наш объект, который хранит
   // все добавленные товары, то создаем новый объект.
   if (!(id in basket)) {
-    basket[id] = {id: id, name: name, price: price, count: 0};
+    // Необходимо скопировать данные из продукта, также добавить количество
+    // в новый объект, который будет храниться в корзине.
+    basket[id] = {
+      id: id,
+      name: products[id].name,
+      price: products[id].price,
+      count: 0,
+    };
   }
   // Добавляем в количество +1 к продукту.
   basket[id].count++;
+}
+
+/**
+ * Функция удаяет продукт из корзины.
+ * @param {string} id - id продукта.
+ */
+function removeFromBasket(id) {
+  // Если товара с данным id меньше или равно 1, то убираем вовсе данный товар
+  // из объекта, иначе вычитаем из count единицу товара.
+  if (basket[id].count <= 1) {
+    delete basket[id];
+  } else {
+    basket[id].count--;
+  }
+}
+
+/**
+ * Функция отображает весь контент корзины.
+ */
+function renderBasketContent() {
+  // Отображаем все товары в корзине.
+  // Пробегаемся по всем товарам в корзине, для каждого товара создаем
+  // разметку и соединяем все товары в одну длинну строку, в которой будут
+  // содержаться разметки каждого товара и добавляем всю разметку в корзину.
+  basketListEl.innerHTML = Object.values(basket).reduce(
+    (acc, product) => acc + getBasketProductMarkup(product),
+    ""
+  );
   // Ставим новое количество добавленных товаров у значка корзины.
   basketCounterEl.textContent = getTotalBasketCount().toString();
   // Ставим новую общую стоимость товаров в корзине.
   basketTotalValueEl.textContent = getTotalBasketPrice().toFixed(2);
-  // Отрисовываем продукт с данным id.
-  renderProductInBasket(id);
 }
 
 /**
@@ -79,54 +146,30 @@ function getTotalBasketCount() {
  * @return {number} - Итоговую цену по всем добавленным продуктам.
  */
 function getTotalBasketPrice() {
-  return Object
-    .values(basket)
-    .reduce((acc, product) => acc + product.price * product.count, 0);
+  return Object.values(basket).reduce(
+    (acc, product) => acc + product.price * product.count,
+    0
+  );
 }
 
 /**
- * Отрисовывает в корзину информацию о продукте.
- * @param {number} productId - Id продукта.
+ * Функция возвращает разметку товара в корзине.
+ * @param {object} product - товар из корзины.
  */
-function renderProductInBasket(productId) {
-  // Получаем строку в корзине, которая отвечает за данный продукт.
-  const basketRowEl = basketEl
-    .querySelector(`.basketRow[data-id="${productId}"]`);
-  // Если такой строки нет, то отрисовываем новую строку.
-  if (!basketRowEl) {
-    renderNewProductInBasket(productId);
-    return;
-  }
-
-  // Получаем данные о продукте из объекта корзины, где хранятся данные о всех
-  // добавленных продуктах.
-  const product = basket[productId];
-  // Ставим новое количество в строке продукта корзины.
-  basketRowEl.querySelector('.productCount').textContent = product.count;
-  // Ставим нужную итоговую цену по данному продукту в строке продукта корзины.
-  basketRowEl
-    .querySelector('.productTotalRow')
-    .textContent = (product.price * product.count).toFixed(2);
-}
-
-/**
- * Функция отрисовывает новый товар в корзине.
- * @param {number} productId - Id товара.
- */
-function renderNewProductInBasket(productId) {
-  const productRow = `
-    <div class="basketRow" data-id="${productId}">
-      <div>${basket[productId].name}</div>
+function getBasketProductMarkup(product) {
+  return `
+    <div class="basketRow" data-id="${product.id}">
+      <div>${product.name}</div>
       <div>
-        <span class="productCount">${basket[productId].count}</span> шт.
+        <span class="productCount">${product.count}</span> шт.
       </div>
-      <div>$${basket[productId].price}</div>
+      <div>${product.price} ₽</div>
       <div>
-        $<span class="productTotalRow">${(basket[productId].price * basket[productId].count).toFixed(2)}</span>
+        <span class="productTotalRow">
+          ${(product.price * product.count).toFixed(2)} ₽
+        </span>
       </div>
+      <div><button class="productRemove">-</button></div>
     </div>
-    `;
-  basketTotalEl.insertAdjacentHTML("beforebegin", productRow);
+  `;
 }
-
-
